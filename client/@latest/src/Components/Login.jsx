@@ -33,7 +33,6 @@ const Login = () => {
                 setLoginStatus("Credential Don't Exist!");
             }
             else{
-                localStorage.setItem('user', JSON.stringify(response.data));
                 navigateTo('/dashboard');
             }
         })
@@ -54,6 +53,7 @@ const Login = () => {
         setLoginUsername('');
         setLoginPassword('');
     }
+
 
     return (
         // JSX code for your Login component
@@ -85,7 +85,6 @@ const Login = () => {
 
                         <form action='' className='form grid' onSubmit={onSubmit}>
                             <span className={statusHolder}>{loginStatus}</span>
-
                             <div className="inputDiv">
                                 <label htmlFor='username'>Username</label>
                                 <div className='input flex'>
@@ -94,11 +93,10 @@ const Login = () => {
                                     onChange={(event)=>{
                                         setLoginUsername(event.target.value);
                                     }
-
                                     }/>
                                 </div>
                             </div>
-
+                            
                             <div className="inputDiv">
                                 <label htmlFor='password'>Password</label>
                                 <div className='input flex'>

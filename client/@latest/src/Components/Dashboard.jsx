@@ -1,52 +1,50 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import '../Components/Dashboard.css';
 import { useNavigate } from 'react-router-dom';
 import Axios from 'axios';
 
 const Dashboard = () => {
     const [aboutMe, setAboutMe] = useState('');
+    const [aboutMeDraft, setAboutMeDraft] = useState('');
     const navigate = useNavigate();
-    const [user, setUser] = useState(null);
 
-    useEffect(() => {
-        const storedUser = JSON.parse(localStorage.getItem('user'));
-        if (storedUser) {
-            setUser(storedUser);
-            setAboutMe(storedUser.about_me_draft || '');
-        } else {
-            navigate('/');
-        }
-    }, [navigate]);
-
-    const handleSaveDraft = async () => {
-        if (!user || !user.username) {
-            alert('User data is missing. Please log in again.');
+    const handleSaveDraft = (e) => {
+        e.preventDefault();
+        const sessionToken = localStorage.getItem('sessionToken');
+    
+        if (!sessionToken) {
+            alert('Session token is missing. Please log in again.');
             return;
         }
     
-        const payload = {
-            username: user.username, // Ensure this matches your backend
-            about_me_draft: aboutMe,
-        };
-    
-        console.log('Sending payload:', payload);
-    
-        try {
-            const response = await Axios.post('http://localhost:3001/save-draft', payload);
-            alert(response.data.message);
-        } catch (error) {
-            console.error('Error response:', error.response);
+        Axios.post('http://localhost:3001/save-draft', {
+            AboutMe: aboutMe,
+        }, {
+            headers: {
+                'x-parse-session-token': sessionToken
+            }
+        })
+        .then((response) => {
+            console.log('Response data:', response.data);
+            if (response.data.message) {
+                alert(response.data.message);
+            } else {
+                alert('Draft could not be saved. Please try again.');
+            }
+        })
+        .catch((error) => {
+            console.error('There was an error saving the draft:', error);
             alert('An error occurred while saving the draft.');
-        }
+        });
     };
-
+    
     const handleSubmit = () => {
         console.log('Submitted:', aboutMe);
         alert('About Me section submitted');
     };
 
     const logoutUser = () => {
-        localStorage.removeItem('user'); // Clear user data
+        localStorage.removeItem('user');
         navigate('/');
     };
 
@@ -67,9 +65,10 @@ const Dashboard = () => {
                         placeholder="Tell us about yourself..."
                     ></textarea>
                     <div>
-                        <button onClick={handleSaveDraft}>Save as Draft</button>
-                        <button onClick={handleSubmit}>Submit</button>
+                        <button className="save" onClick={handleSaveDraft}>Save as Draft</button>
+
                     </div>
+                    {aboutMeDraft && <p>{aboutMeDraft}</p>}
                 </div>
             </main>
             <footer>

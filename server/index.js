@@ -2,10 +2,16 @@ const express = require('express');
 const app = express();
 const mysql = require('mysql');
 const cors = require('cors');
+const Parse = require('parse/node');
+const bodyParser = require('body-parser');
 
 app.use(express.json());
 app.use(cors());
+app.use(bodyParser.json());
 
+
+Parse.initialize('myAppId', '', 'myMasterKey');
+Parse.serverURL = 'http://localhost:1337/parse';
 app.listen(3001, () => {
     console.log("Server is running on port 3001");
 })
@@ -16,6 +22,16 @@ const db = mysql.createConnection({
     password: "",
     database: "plantdb"
 })
+
+
+async function run() {
+    try {
+        const user = new Parse.User();
+        user.set("username", "myName");
+    } catch (e) {
+        console.log(e);
+    }
+}
 
 app.post('/register', (req, res) => {
     const sentEmail = req.body.Email;
@@ -35,34 +51,68 @@ app.post('/register', (req, res) => {
     })
 })
 
-app.post('/login', (req, res) => {
+app.post('/login', async (req, res) => {
     const sentLoginUserName = req.body.LoginUserName;
     const sentLoginPassword = req.body.LoginPassword;
 
-    const SQL = "SELECT * FROM users WHERE username = ? && password = ?";
-    const Values = [sentLoginUserName, sentLoginPassword];
+    try {
+        // Log in with Parse
+        const user = await Parse.User.logIn(sentLoginUserName, sentLoginPassword);
 
-    db.query(SQL, Values, (err, result) => {
-        if (err) {
-            res.send({error: err});
-        }
+        // If successful, proceed to query your database
+        const SQL = "SELECT * FROM users WHERE username = ? AND password = ?";
+        const Values = [sentLoginUserName, sentLoginPassword];
 
-        if (result.length > 0) {
-            res.send(result[0]);
-        }
-        else{
-            res.send({message: "Wrong username or password!"});
-        }
-    })
-})
+        db.query(SQL, Values, (err, result) => {
+            if (err) {
+                return res.status(500).send({ message: "Database error", error: err });
+            }
 
-app.post('/save-draft', (req, res) => {
-    const { username, about_me_draft } = req.body;
+            if (result.length > 0) {
+                res.send({
+                    message: "Login successful",
+                    sessionToken: user.getSessionToken(),
+                    username: user.getUsername()
+                });
+            } else {
+                res.status(401).send({ message: "User not found in database" });
+            }
+        });
+    } catch (error) {
+        res.status(401).send({ message: "Wrong username or password!", error });
+    }
+});
+
+const authenticateUser = async (req, res, next) => {
+    const sessionToken = req.headers['x-parse-session-token'];
+
+    if (!sessionToken) {
+        return res.status(401).send({ message: "User is not authenticated. No session token provided." });
+    }
+
+    try {
+        const currentUser = await Parse.User.become(sessionToken);
+        req.currentUser = currentUser;
+        next();
+    } catch (error) {
+        console.error('Error authenticating user:', error);
+        res.status(401).send({ message: "User authentication failed." });
+    }
+};
+
+app.post('/save-draft', authenticateUser, (req, res) => {
+    const sentUpdateAboutMe = req.body.AboutMe;
+    const currentUser = req.currentUser;
+
+    if (!currentUser) {
+        return res.status(401).send({ message: "User is not authenticated." });
+    }
+
+    const username = currentUser.getUsername();
+    console.log('Current username:', username);
 
     const SQL = "UPDATE users SET about_me_draft = ? WHERE username = ?";
-    const values = [about_me_draft, username];
-
-    console.log('Received payload:', req.body); // Log the incoming request payload
+    const values = [sentUpdateAboutMe, username];
 
     db.query(SQL, values, (err, result) => {
         if (err) {
@@ -77,9 +127,3 @@ app.post('/save-draft', (req, res) => {
         }
     });
 });
-
-app.listen(port, () => {
-    console.log(`Server running on port ${port}`);
-});
-
-
